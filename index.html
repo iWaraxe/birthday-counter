@@ -1,14 +1,374 @@
-<!DOCTYPE html\>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Birthday Countdown</title>
-	<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birthday Countdown</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #confetti-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 90%;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 10px rgba(255, 255, 255, 0.5); }
+            to { text-shadow: 0 0 20px rgba(255, 255, 255, 0.8); }
+        }
+
+        .input-section {
+            margin-bottom: 2rem;
+        }
+
+        input[type="date"] {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            margin: 0 0.5rem;
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
+
+        button {
+            padding: 0.8rem 2rem;
+            border: none;
+            border-radius: 10px;
+            background: white;
+            color: #667eea;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+        }
+
+        .countdown {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .time-unit {
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 15px;
+            transition: transform 0.3s;
+        }
+
+        .time-unit:hover {
+            transform: translateY(-5px);
+        }
+
+        .number {
+            font-size: 3rem;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .label {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+
+        .message {
+            margin-top: 2rem;
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .birthday-message {
+            font-size: 2rem;
+            animation: bounce 1s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @media (max-width: 600px) {
+            .countdown {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .number {
+                font-size: 2rem;
+            }
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
 </head>
 <body>
-	<h1>Birthday Countdown</h1>
-	<div id="countdown"></div>
-	<script src="app.js"></script>
+    <canvas id="confetti-canvas"></canvas>
+    <div class="container">
+        <h1>🎂 Birthday Countdown 🎂</h1>
+        
+        <div class="input-section" id="inputSection">
+            <p style="margin-bottom: 1rem;">When's your birthday?</p>
+            <input type="date" id="birthdayInput" />
+            <button onclick="startCountdown()">Start Countdown</button>
+        </div>
+
+        <div id="countdownSection" style="display: none;">
+            <div class="countdown">
+                <div class="time-unit">
+                    <span class="number" id="days">0</span>
+                    <span class="label">Days</span>
+                </div>
+                <div class="time-unit">
+                    <span class="number" id="hours">0</span>
+                    <span class="label">Hours</span>
+                </div>
+                <div class="time-unit">
+                    <span class="number" id="minutes">0</span>
+                    <span class="label">Minutes</span>
+                </div>
+                <div class="time-unit">
+                    <span class="number" id="seconds">0</span>
+                    <span class="label">Seconds</span>
+                </div>
+            </div>
+            <div class="message" id="message"></div>
+            <button onclick="resetCountdown()" style="margin-top: 2rem;">Change Date</button>
+            <button onclick="testConfetti()" style="margin-top: 2rem; margin-left: 1rem;">Test Confetti 🎊</button>
+        </div>
+    </div>
+
+    <script>
+        let birthday = null;
+        let countdownInterval = null;
+
+        function startCountdown() {
+            const input = document.getElementById('birthdayInput');
+            if (!input.value) {
+                alert('Please select your birthday!');
+                return;
+            }
+
+            birthday = new Date(input.value);
+            birthday.setFullYear(new Date().getFullYear());
+            
+            // If birthday has passed this year, set it to next year
+            if (birthday < new Date()) {
+                birthday.setFullYear(birthday.getFullYear() + 1);
+            }
+
+            document.getElementById('inputSection').style.display = 'none';
+            document.getElementById('countdownSection').style.display = 'block';
+            
+            updateCountdown();
+            countdownInterval = setInterval(updateCountdown, 1000);
+        }
+
+        function updateCountdown() {
+            const now = new Date();
+            const difference = birthday - now;
+
+            if (difference <= 0) {
+                clearInterval(countdownInterval);
+                document.getElementById('message').innerHTML = 
+                    '<div class="birthday-message">🎉 Happy Birthday! 🎉</div>';
+                confetti.start(); // Trigger confetti animation
+                return;
+            }
+
+            const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+            document.getElementById('days').textContent = days;
+            document.getElementById('hours').textContent = hours;
+            document.getElementById('minutes').textContent = minutes;
+            document.getElementById('seconds').textContent = seconds;
+
+            // Add encouraging messages based on time left
+            const messageEl = document.getElementById('message');
+            if (days === 0) {
+                messageEl.textContent = "🎊 It's almost here! Get ready to celebrate! 🎊";
+            } else if (days === 1) {
+                messageEl.textContent = "🎈 Just one more day! 🎈";
+            } else if (days <= 7) {
+                messageEl.textContent = "🎁 Less than a week to go! 🎁";
+            } else if (days <= 30) {
+                messageEl.textContent = "📅 Counting down the days! 📅";
+            } else {
+                messageEl.textContent = `✨ ${days} days of anticipation! ✨`;
+            }
+        }
+
+        function resetCountdown() {
+            clearInterval(countdownInterval);
+            confetti.stop(); // Stop confetti if running
+            document.getElementById('inputSection').style.display = 'block';
+            document.getElementById('countdownSection').style.display = 'none';
+            document.getElementById('birthdayInput').value = '';
+        }
+
+        function testConfetti() {
+            confetti.start();
+            setTimeout(() => confetti.stop(), 5000); // Stop after 5 seconds
+        }
+
+        // Set max date to today to ensure we're selecting past birthdays
+        document.getElementById('birthdayInput').max = new Date().toISOString().split('T')[0];
+
+        // Confetti animation
+        class Confetti {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.particles = [];
+                this.animationId = null;
+                this.colors = ['#ff006e', '#fb5607', '#ffbe0b', '#8338ec', '#3a86ff', '#06ffa5'];
+                
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            createParticle() {
+                return {
+                    x: Math.random() * this.canvas.width,
+                    y: -30,
+                    vx: (Math.random() - 0.5) * 2, // Reduced from 6 to 2
+                    vy: Math.random() * 1 + 1, // Reduced from 2+3 to 1+1
+                    size: Math.random() * 8 + 6,
+                    color: this.colors[Math.floor(Math.random() * this.colors.length)],
+                    shape: Math.random() > 0.5 ? 'circle' : 'square',
+                    opacity: 1
+                };
+            }
+
+            start() {
+                console.log('Starting confetti animation'); // Debug log
+                this.stop(); // Stop any existing animation
+                this.particles = [];
+                
+                // Create all particles at once for immediate effect
+                for (let i = 0; i < 100; i++) {
+                    this.particles.push(this.createParticle());
+                }
+                
+                this.animate();
+            }
+
+            animate() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Update and draw particles
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const particle = this.particles[i];
+                    
+                    // Update position
+                    particle.y += particle.vy;
+                    particle.x += particle.vx;
+                    particle.vy += 0.05; // Reduced gravity from 0.2 to 0.05
+                    particle.opacity -= 0.003; // Made fade even slower
+                    
+                    // Remove if off screen or faded
+                    if (particle.y > this.canvas.height + 50 || particle.opacity <= 0) {
+                        this.particles.splice(i, 1);
+                        continue;
+                    }
+                    
+                    // Draw particle
+                    this.ctx.save();
+                    this.ctx.globalAlpha = particle.opacity;
+                    this.ctx.fillStyle = particle.color;
+                    
+                    if (particle.shape === 'circle') {
+                        this.ctx.beginPath();
+                        this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                        this.ctx.fill();
+                    } else {
+                        this.ctx.fillRect(
+                            particle.x - particle.size / 2, 
+                            particle.y - particle.size / 2, 
+                            particle.size, 
+                            particle.size
+                        );
+                    }
+                    
+                    this.ctx.restore();
+                }
+                
+                // Continue animation if particles exist
+                if (this.particles.length > 0) {
+                    this.animationId = requestAnimationFrame(() => this.animate());
+                } else {
+                    console.log('Confetti animation ended'); // Debug log
+                }
+            }
+
+            stop() {
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                    this.animationId = null;
+                }
+                this.particles = [];
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                console.log('Confetti animation stopped'); // Debug log
+            }
+        }
+
+        const confettiCanvas = document.getElementById('confetti-canvas');
+        const confetti = new Confetti(confettiCanvas);
+    </script>
 </body>
 </html>
